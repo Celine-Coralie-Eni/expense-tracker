@@ -1,23 +1,74 @@
 'use client'
 
 import { useState } from 'react'
-import { signInWithGoogle } from '@/lib/auth-client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { authClient } from '@/lib/auth-client'
 
 export default function RegisterPage() {
+  const router = useRouter()
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isEmailLoading, setIsEmailLoading] = useState(false)
   const [error, setError] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [name, setName] = useState('')
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true)
     setError('')
     
     try {
-      await signInWithGoogle()
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/dashboard",
+      })
     } catch (error: unknown) {
       console.error('Google sign-in error:', error)
       setError(error instanceof Error ? error.message : 'Google sign-in failed')
     } finally {
       setIsGoogleLoading(false)
+    }
+  }
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsEmailLoading(true)
+    setError('')
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      setIsEmailLoading(false)
+      return
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long')
+      setIsEmailLoading(false)
+      return
+    }
+    
+    try {
+      const result = await authClient.signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: "/dashboard",
+      })
+      
+      if (result.error) {
+        setError(result.error.message || 'Sign up failed')
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (error: unknown) {
+      console.error('Email sign-up error:', error)
+      setError(error instanceof Error ? error.message : 'Sign up failed')
+    } finally {
+      setIsEmailLoading(false)
     }
   }
 
@@ -29,7 +80,7 @@ export default function RegisterPage() {
             Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-400">
-            Sign up with your Google account to get started
+            Sign up with email or Google to get started
           </p>
         </div>
 
@@ -39,6 +90,98 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {/* Email/Password Registration Form */}
+        <form onSubmit={handleEmailSignUp} className="space-y-6">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-300">
+              Full Name
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              autoComplete="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter your full name"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300">
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Create a password"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Confirm your password"
+            />
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isEmailLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isEmailLoading ? 'Creating account...' : 'Create Account'}
+            </button>
+          </div>
+        </form>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-900 text-gray-400">Or continue with</span>
+          </div>
+        </div>
+
+        {/* Google OAuth */}
         <div>
           <button
             onClick={handleGoogleSignIn}
@@ -51,8 +194,18 @@ export default function RegisterPage() {
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            {isGoogleLoading ? 'Signing in with Google...' : 'Continue with Google'}
+            {isGoogleLoading ? 'Signing up with Google...' : 'Continue with Google'}
           </button>
+        </div>
+
+        {/* Sign in link */}
+        <div className="text-center">
+          <p className="text-sm text-gray-400">
+            Already have an account?{' '}
+            <Link href="/login" className="font-medium text-indigo-400 hover:text-indigo-300">
+              Sign in here
+            </Link>
+          </p>
         </div>
 
         <div className="text-center">
