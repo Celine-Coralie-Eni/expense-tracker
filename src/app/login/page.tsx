@@ -1,23 +1,57 @@
 'use client'
 
 import { useState } from 'react'
-import { signInWithGoogle } from '@/lib/auth-client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { authClient } from '@/lib/auth-client'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isEmailLoading, setIsEmailLoading] = useState(false)
   const [error, setError] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true)
     setError('')
     
     try {
-      await signInWithGoogle()
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/dashboard",
+      })
     } catch (error: unknown) {
       console.error('Google sign-in error:', error)
       setError(error instanceof Error ? error.message : 'Google sign-in failed')
     } finally {
       setIsGoogleLoading(false)
+    }
+  }
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsEmailLoading(true)
+    setError('')
+    
+    try {
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: "/dashboard",
+      })
+      
+      if (result.error) {
+        setError(result.error.message || 'Sign in failed')
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (error: unknown) {
+      console.error('Email sign-in error:', error)
+      setError(error instanceof Error ? error.message : 'Sign in failed')
+    } finally {
+      setIsEmailLoading(false)
     }
   }
 
@@ -29,7 +63,7 @@ export default function LoginPage() {
             Sign in to your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-400">
-            Sign in with your Google account to continue
+            Sign in with your email or Google account
           </p>
         </div>
 
@@ -39,6 +73,64 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Email/Password Form */}
+        <form onSubmit={handleEmailSignIn} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300">
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isEmailLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isEmailLoading ? 'Signing in...' : 'Sign in with Email'}
+            </button>
+          </div>
+        </form>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-900 text-gray-400">Or continue with</span>
+          </div>
+        </div>
+
+        {/* Google OAuth */}
         <div>
           <button
             onClick={handleGoogleSignIn}
@@ -53,6 +145,16 @@ export default function LoginPage() {
             </svg>
             {isGoogleLoading ? 'Signing in with Google...' : 'Continue with Google'}
           </button>
+        </div>
+
+        {/* Sign up link */}
+        <div className="text-center">
+          <p className="text-sm text-gray-400">
+            Don't have an account?{' '}
+            <Link href="/register" className="font-medium text-indigo-400 hover:text-indigo-300">
+              Sign up here
+            </Link>
+          </p>
         </div>
 
         <div className="text-center">
