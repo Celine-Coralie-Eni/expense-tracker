@@ -29,17 +29,15 @@ export default function SettingsPage() {
   
   // 2FA Setup State
   const [isSettingUp2FA, setIsSettingUp2FA] = useState(false)
-  const [qrCodeUrl, setQrCodeUrl] = useState('')
-  const [, setSecret] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [backupCodes, setBackupCodes] = useState<string[]>([])
   const [showBackupCodes, setShowBackupCodes] = useState(false)
+  const [secret, setSecret] = useState('')
+  const [qrCodeUrl, setQrCodeUrl] = useState('')
   
-  // Password Setup State (for social login users)
-  const [needsPassword, setNeedsPassword] = useState(false)
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [isSettingPassword, setIsSettingPassword] = useState(false)
+  // Password prompt for 2FA setup
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -73,31 +71,66 @@ export default function SettingsPage() {
   const initiate2FASetup = async () => {
     try {
       setError('')
+      setShowPasswordPrompt(true)
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Failed to initiate 2FA setup')
+    }
+  }
+
+  const enable2FAWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setError('')
       setIsSettingUp2FA(true)
       
-      // Try to enable 2FA with empty password for social login users
       const result = await authClient.twoFactor.enable({
-        password: '',
+        password: currentPassword,
       })
       
       if (result.data) {
         // Better Auth returns totpURI and backupCodes
         setSecret(result.data.totpURI || '')
-        setBackupCodes(result.data.backupCodes || [])
+        
+        // Handle backup codes - they might be a string or array
+        const codes = result.data.backupCodes as string | string[] | undefined
+        if (typeof codes === 'string') {
+          try {
+            setBackupCodes(JSON.parse(codes))
+          } catch {
+            setBackupCodes(codes.split(',').map((code: string) => code.trim()))
+          }
+        } else if (Array.isArray(codes)) {
+          setBackupCodes(codes)
+        } else {
+          setBackupCodes([])
+        }
         
         // Generate QR code
         const qrCodeDataUrl = await QRCode.toDataURL(result.data.totpURI)
         setQrCodeUrl(qrCodeDataUrl)
+        setShowPasswordPrompt(false)
+        setCurrentPassword('')
       } else if (result.error) {
-        // Suppress error messages for better UX
-        setIsSettingUp2FA(false)
+        // Check if it's an invalid password error (Google OAuth users need email/password account)
+        if (result.error.code === 'INVALID_PASSWORD') {
+          setIsSettingUp2FA(false)
+          setShowPasswordPrompt(false)
+          setError('2FA is available for email/password accounts only. Google OAuth users can create a separate email/password account for enhanced security with 2FA.')
+          return
+        } else {
+          setError(result.error.message || 'Failed to enable 2FA')
+          setIsSettingUp2FA(false)
+          setShowPasswordPrompt(false)
+        }
       } else {
         setError('No 2FA data received from server')
         setIsSettingUp2FA(false)
+        setShowPasswordPrompt(false)
       }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Failed to initiate 2FA setup')
+      setError(error instanceof Error ? error.message : 'Failed to enable 2FA')
       setIsSettingUp2FA(false)
+      setShowPasswordPrompt(false)
     }
   }
 
@@ -115,74 +148,11 @@ export default function SettingsPage() {
         setShowBackupCodes(true)
         setUser(prev => prev ? { ...prev, twoFactorEnabled: true } : null)
         setVerificationCode('')
+      } else if (result.error) {
+        setError(result.error.message || 'Invalid verification code')
       }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Invalid verification code')
-    }
-  }
-
-  const setUserPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-    
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long')
-      return
-    }
-    
-    try {
-      setIsSettingPassword(true)
-      
-      // Use Better Auth to set password for social login user
-      const result = await authClient.changePassword({
-        newPassword: password,
-        currentPassword: '', // Empty for social login users
-      })
-      
-      
-      if (result.data) {
-        setSuccess('Password set successfully! You can now enable 2FA.')
-        setNeedsPassword(false)
-        setPassword('')
-        setConfirmPassword('')
-        
-        // Now try to enable 2FA with the new password
-        setTimeout(() => {
-          initiate2FASetupWithPassword(password)
-        }, 1000)
-      }
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Failed to set password')
-    } finally {
-      setIsSettingPassword(false)
-    }
-  }
-
-  const initiate2FASetupWithPassword = async (userPassword: string) => {
-    try {
-      setError('')
-      setIsSettingUp2FA(true)
-      
-      const result = await authClient.twoFactor.enable({
-        password: userPassword,
-      })
-      
-      if (result.data) {
-        setSecret(result.data.totpURI || '')
-        setBackupCodes(result.data.backupCodes || [])
-        
-        const qrCodeDataUrl = await QRCode.toDataURL(result.data.totpURI)
-        setQrCodeUrl(qrCodeDataUrl)
-        setSuccess('')
-      }
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Failed to enable 2FA')
-      setIsSettingUp2FA(false)
+      setError(error instanceof Error ? error.message : 'Failed to verify 2FA')
     }
   }
 
@@ -287,11 +257,57 @@ export default function SettingsPage() {
               </div>
 
 
+
               {/* 2FA Section */}
               <div className="border-t border-gray-700 pt-8">
                 <h2 className="text-lg font-medium text-white mb-4">Two-Factor Authentication</h2>
                 
-                {!user?.twoFactorEnabled && !isSettingUp2FA && !needsPassword && (
+                {/* Password prompt for 2FA setup */}
+                {showPasswordPrompt && (
+                  <div className="space-y-4">
+                    <h3 className="text-md font-medium text-white">Confirm Your Password</h3>
+                    <p className="text-gray-300">
+                      Please enter your account password to enable 2FA.
+                    </p>
+                    <form onSubmit={enable2FAWithPassword} className="space-y-4 max-w-md">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                          Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="block w-full border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border bg-gray-700 text-white placeholder-gray-400"
+                          placeholder="Enter your password"
+                        />
+                      </div>
+                      <div className="flex space-x-3">
+                        <button
+                          type="submit"
+                          disabled={isSettingUp2FA}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          {isSettingUp2FA ? 'Setting up 2FA...' : 'Continue'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPasswordPrompt(false)
+                            setCurrentPassword('')
+                            setError('')
+                          }}
+                          className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {!user?.twoFactorEnabled && !isSettingUp2FA && !showPasswordPrompt && (
                   <div className="space-y-4">
                     <p className="text-gray-300">
                       Add an extra layer of security to your account by enabling two-factor authentication.
@@ -302,10 +318,27 @@ export default function SettingsPage() {
                     >
                       Enable 2FA
                     </button>
+                    
+                    {/* Info for Google OAuth users */}
+                    <div className="mt-4 p-4 bg-blue-900/20 border border-blue-800 rounded-md">
+                      <h4 className="text-sm font-medium text-blue-300 mb-2">💡 For Google OAuth Users</h4>
+                      <p className="text-sm text-blue-200">
+                        If you signed in with Google and want 2FA, you can create a separate email/password account with a different email address. 
+                        This gives you the convenience of Google sign-in plus the security of 2FA when needed.
+                      </p>
+                      <div className="mt-2">
+                        <a 
+                          href="/register" 
+                          className="text-sm text-blue-400 hover:text-blue-300 underline"
+                        >
+                          Create Email/Password Account →
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {isSettingUp2FA && !showBackupCodes && (
+                {isSettingUp2FA && !showBackupCodes && !showPasswordPrompt && (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-md font-medium text-white mb-2">Step 1: Scan QR Code</h3>
