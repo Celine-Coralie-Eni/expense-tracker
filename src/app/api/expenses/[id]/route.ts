@@ -13,7 +13,7 @@ const updateExpenseSchema = z.object({
 // PUT /api/expenses/[id] - Update an expense
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     let userId: string | null = null
@@ -27,7 +27,7 @@ export async function PUT(
         userId = session.user.id
         console.log('🔍 PUT /api/expenses/[id] - Better Auth session found for user:', userId)
       }
-    } catch (authError) {
+    } catch {
       console.log('🔍 PUT /api/expenses/[id] - Better Auth session not found')
     }
 
@@ -37,7 +37,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const validatedData = updateExpenseSchema.parse(body)
 
@@ -56,7 +56,7 @@ export async function PUT(
       )
     }
 
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
     if (validatedData.title !== undefined) updateData.title = validatedData.title
     if (validatedData.amount !== undefined) updateData.amount = validatedData.amount
     if (validatedData.category !== undefined) updateData.category = validatedData.category
@@ -87,7 +87,7 @@ export async function PUT(
 // DELETE /api/expenses/[id] - Delete an expense
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     let userId: string | null = null
@@ -101,7 +101,7 @@ export async function DELETE(
         userId = session.user.id
         console.log('🔍 DELETE /api/expenses/[id] - Better Auth session found for user:', userId)
       }
-    } catch (authError) {
+    } catch {
       console.log('🔍 DELETE /api/expenses/[id] - Better Auth session not found')
     }
 
@@ -111,7 +111,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Check if expense exists and belongs to user
     const existingExpense = await prisma.expense.findFirst({

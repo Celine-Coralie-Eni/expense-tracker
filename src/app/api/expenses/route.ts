@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
           userName: session.user.name
         })
       }
-    } catch (authError) {
+    } catch {
       console.log('🔍 GET /api/expenses - Better Auth session not found')
     }
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
           userName: session.user.name
         })
       }
-    } catch (authError) {
+    } catch {
       console.log('🔍 POST /api/expenses - Better Auth session not found')
     }
 

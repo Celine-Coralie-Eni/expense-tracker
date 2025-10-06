@@ -51,7 +51,9 @@ export default function DashboardPage() {
 
   const fetchExpenses = async () => {
     try {
-      const response = await fetch('/api/expenses')
+      const response = await fetch('/api/expenses', {
+        credentials: 'include', // Include cookies for Better Auth
+      })
       if (response.ok) {
         const data = await response.json()
         setExpenses(data)
@@ -75,6 +77,7 @@ export default function DashboardPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies for Better Auth
         body: JSON.stringify({
           title,
           amount: parseFloat(amount),
@@ -106,6 +109,7 @@ export default function DashboardPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies for Better Auth
         body: JSON.stringify({
           title,
           amount: parseFloat(amount),
@@ -134,6 +138,7 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/expenses/${id}`, {
         method: 'DELETE',
+        credentials: 'include', // Include cookies for Better Auth
       })
 
       if (response.ok) {
@@ -208,6 +213,12 @@ export default function DashboardPage() {
                     .find(row => row.startsWith('user-email='))
                     ?.split('=')[1] || 'User')}
               </span>
+              <Link
+                href="/settings"
+                className="text-gray-300 hover:text-white transition-colors text-sm font-medium"
+              >
+                Settings
+              </Link>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 shadow-md"
