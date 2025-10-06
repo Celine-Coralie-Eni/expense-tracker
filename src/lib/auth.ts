@@ -14,6 +14,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Set to true if you want email verification
+    autoSignIn: false, // Don't auto sign in after password setup
+  },
+  account: {
+    accountLinking: {
+      enabled: true, // Enable account linking for Google OAuth users to add passwords
+      trustedProviders: ["google"], // Allow linking Google accounts
+    },
   },
   socialProviders: {
     google: {
