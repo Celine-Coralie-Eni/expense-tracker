@@ -13,15 +13,29 @@ export default function Verify2FAPage() {
   const [useBackupCode, setUseBackupCode] = useState(false)
 
   useEffect(() => {
-    // Check if user is already authenticated
+    // Check if user is already fully authenticated (including 2FA)
     const checkAuth = async () => {
       try {
         const session = await authClient.getSession()
         if (session.data) {
-          router.push('/dashboard')
+          // Check if user has completed 2FA verification
+          const userResponse = await fetch('/api/user/settings', {
+            credentials: 'include',
+          })
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json()
+            
+            // If user doesn't have 2FA enabled, they shouldn't be on this page
+            if (!userData.twoFactorEnabled) {
+              router.push('/dashboard')
+            }
+            // If user has 2FA enabled, they should stay on this page to verify
+          }
         }
       } catch {
-        // User not authenticated, which is expected on this page
+        // User not authenticated, redirect to login
+        router.push('/login')
       }
     }
     
@@ -42,6 +56,8 @@ export default function Verify2FAPage() {
         
         if (result.data) {
           router.push('/dashboard')
+        } else if (result.error) {
+          setError(result.error.message || 'Invalid backup code')
         }
       } else {
         // Verify TOTP code
@@ -51,10 +67,13 @@ export default function Verify2FAPage() {
         
         if (result.data) {
           router.push('/dashboard')
+        } else if (result.error) {
+          setError(result.error.message || 'Invalid verification code')
         }
       }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Invalid verification code')
+      console.error('2FA verification error:', error)
+      setError(error instanceof Error ? error.message : 'Verification failed')
     } finally {
       setIsLoading(false)
     }
