@@ -28,25 +28,52 @@ export default function DashboardPage() {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  // Delete confirmation modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isPending && !session) {
-      // Check for Google OAuth cookie session as fallback
-      const userEmail = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('user-email='))
-        ?.split('=')[1]
+    const checkAuthAndFetch = async () => {
+      if (!isPending && !session) {
+        // Check for Google OAuth cookie session as fallback
+        const userEmail = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('user-email='))
+          ?.split('=')[1]
 
-      if (!userEmail) {
-        router.push('/login')
-        return
+        if (!userEmail) {
+          router.push('/login')
+          return
+        }
+      }
+      
+      // If we have a session, check if 2FA verification is needed
+      if (!isPending && session) {
+        try {
+          const userResponse = await fetch('/api/user/settings', {
+            credentials: 'include',
+          })
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json()
+            
+            // If user has 2FA enabled, they should have already verified
+            // Only redirect if they somehow bypassed 2FA verification
+            // For now, let's allow access after successful 2FA verification
+          }
+        } catch (error) {
+          console.error('Error checking 2FA status:', error)
+          // If we can't check 2FA status, continue to dashboard
+        }
+      }
+      
+      // Fetch expenses if we have any kind of session
+      if (!isPending && (session || document.cookie.includes('user-email='))) {
+        fetchExpenses()
       }
     }
     
-    // Fetch expenses if we have any kind of session
-    if (!isPending && (session || document.cookie.includes('user-email='))) {
-      fetchExpenses()
-    }
+    checkAuthAndFetch()
   }, [session, isPending, router])
 
   const fetchExpenses = async () => {
@@ -132,17 +159,28 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDeleteExpense = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this expense?')) return
+  const openDeleteModal = (id: string) => {
+    setExpenseToDelete(id)
+    setShowDeleteModal(true)
+  }
+
+  const closeDeleteModal = () => {
+    setExpenseToDelete(null)
+    setShowDeleteModal(false)
+  }
+
+  const confirmDeleteExpense = async () => {
+    if (!expenseToDelete) return
 
     try {
-      const response = await fetch(`/api/expenses/${id}`, {
+      const response = await fetch(`/api/expenses/${expenseToDelete}`, {
         method: 'DELETE',
         credentials: 'include', // Include cookies for Better Auth
       })
 
       if (response.ok) {
-        setExpenses(expenses.filter(exp => exp.id !== id))
+        setExpenses(expenses.filter(exp => exp.id !== expenseToDelete))
+        closeDeleteModal()
       } else {
         setError('Failed to delete expense')
       }
@@ -402,7 +440,7 @@ export default function DashboardPage() {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteExpense(expense.id)}
+                            onClick={() => openDeleteModal(expense.id)}
                             className="text-red-400 hover:text-red-300 text-sm font-medium"
                           >
                             Delete
@@ -417,6 +455,45 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-white">Delete Expense</h3>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-300">
+                Are you sure you want to delete this expense? This action cannot be undone and will permanently remove the expense from your records.
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={closeDeleteModal}
+                className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteExpense}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+              >
+                Delete Expense
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
