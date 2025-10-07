@@ -72,10 +72,11 @@ export default function SettingsPage() {
 
   const isGoogleOAuthUser = () => {
     // Check if user signed in with Google OAuth
+    // Only check for Google profile image, not Gmail email domain
+    // Gmail users can still create email/password accounts
     const hasGoogleImage = session?.user?.image?.includes('googleusercontent.com')
-    const hasGmailEmail = session?.user?.email?.includes('gmail.com')
     
-    return hasGoogleImage || hasGmailEmail
+    return hasGoogleImage
   }
 
   const initiate2FASetup = async () => {
