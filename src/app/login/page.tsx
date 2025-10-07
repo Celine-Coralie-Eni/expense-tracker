@@ -39,13 +39,21 @@ export default function LoginPage() {
       const result = await authClient.signIn.email({
         email,
         password,
-        callbackURL: "/dashboard",
       })
       
       if (result.error) {
-        setError(result.error.message || 'Sign in failed')
+        setError(result.error.message || 'Invalid email or password')
+      } else if (result.data) {
+        // Check if 2FA redirect is needed (Better Auth returns this for 2FA users)
+        if ((result.data as any).twoFactorRedirect) {
+          // User has 2FA enabled - redirect to verification
+          router.push('/verify-2fa')
+        } else {
+          // Normal login - redirect to dashboard
+          router.push('/dashboard')
+        }
       } else {
-        router.push('/dashboard')
+        setError('Login failed. Please try again.')
       }
     } catch (error: unknown) {
       console.error('Email sign-in error:', error)
