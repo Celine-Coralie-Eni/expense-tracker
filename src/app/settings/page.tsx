@@ -38,6 +38,7 @@ export default function SettingsPage() {
   // Password prompt for 2FA setup
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
+  
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -49,6 +50,7 @@ export default function SettingsPage() {
       fetchUserSettings()
     }
   }, [session, isPending, router])
+
 
   const fetchUserSettings = async () => {
     try {
@@ -68,17 +70,39 @@ export default function SettingsPage() {
     }
   }
 
+  const isGoogleOAuthUser = () => {
+    // Check if user signed in with Google OAuth
+    const hasGoogleImage = session?.user?.image?.includes('googleusercontent.com')
+    const hasGmailEmail = session?.user?.email?.includes('gmail.com')
+    
+    return hasGoogleImage || hasGmailEmail
+  }
+
   const initiate2FASetup = async () => {
     try {
       setError('')
+      
+      // Check if user is Google OAuth user
+      const isGoogle = isGoogleOAuthUser()
+      
+      if (isGoogle) {
+        // Show error message for Google OAuth users
+        setError('2FA is only available for email/password accounts.')
+        return
+      }
+      
+      // Show password prompt for email/password users
       setShowPasswordPrompt(true)
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'Failed to initiate 2FA setup')
     }
   }
 
+
+
   const enable2FAWithPassword = async (e: React.FormEvent) => {
     e.preventDefault()
+    
     try {
       setError('')
       setIsSettingUp2FA(true)
@@ -111,11 +135,11 @@ export default function SettingsPage() {
         setShowPasswordPrompt(false)
         setCurrentPassword('')
       } else if (result.error) {
-        // Check if it's an invalid password error (Google OAuth users need email/password account)
-        if (result.error.code === 'INVALID_PASSWORD') {
+        // Check if it's an invalid password error (Google OAuth users)
+        if (result.error.code === 'INVALID_PASSWORD' || result.error.message?.includes('Invalid password')) {
           setIsSettingUp2FA(false)
           setShowPasswordPrompt(false)
-          setError('2FA is available for email/password accounts only. Google OAuth users can create a separate email/password account for enhanced security with 2FA.')
+          setError('2FA is only available for email/password accounts.')
           return
         } else {
           setError(result.error.message || 'Failed to enable 2FA')
@@ -262,6 +286,7 @@ export default function SettingsPage() {
               <div className="border-t border-gray-700 pt-8">
                 <h2 className="text-lg font-medium text-white mb-4">Two-Factor Authentication</h2>
                 
+
                 {/* Password prompt for 2FA setup */}
                 {showPasswordPrompt && (
                   <div className="space-y-4">
@@ -269,6 +294,7 @@ export default function SettingsPage() {
                     <p className="text-gray-300">
                       Please enter your account password to enable 2FA.
                     </p>
+                    
                     <form onSubmit={enable2FAWithPassword} className="space-y-4 max-w-md">
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -276,11 +302,11 @@ export default function SettingsPage() {
                         </label>
                         <input
                           type="password"
-                          required
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           className="block w-full border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border bg-gray-700 text-white placeholder-gray-400"
-                          placeholder="Enter your password"
+                          placeholder="Enter your account password"
+                          required
                         />
                       </div>
                       <div className="flex space-x-3">
@@ -318,23 +344,6 @@ export default function SettingsPage() {
                     >
                       Enable 2FA
                     </button>
-                    
-                    {/* Info for Google OAuth users */}
-                    <div className="mt-4 p-4 bg-blue-900/20 border border-blue-800 rounded-md">
-                      <h4 className="text-sm font-medium text-blue-300 mb-2">💡 For Google OAuth Users</h4>
-                      <p className="text-sm text-blue-200">
-                        If you signed in with Google and want 2FA, you can create a separate email/password account with a different email address. 
-                        This gives you the convenience of Google sign-in plus the security of 2FA when needed.
-                      </p>
-                      <div className="mt-2">
-                        <a 
-                          href="/register" 
-                          className="text-sm text-blue-400 hover:text-blue-300 underline"
-                        >
-                          Create Email/Password Account →
-                        </a>
-                      </div>
-                    </div>
                   </div>
                 )}
 
