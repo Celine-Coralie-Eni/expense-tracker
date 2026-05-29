@@ -46,3 +46,10 @@ chat.pdf
 det.md
 det.pdf 
 README.md
+.codex/
+.codex-home/
+.agents/
+.claude/
+AGENTS.md
+.codex-home/shell_snapshots/
+.env.local
